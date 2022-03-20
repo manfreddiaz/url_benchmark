@@ -112,13 +112,13 @@ class VariationalCuriosityModule(nn.Module):
             device=self.device, 
         )
         self.generator.zero_grad()
-        output_fake = self.discriminator(next_obs_hat)
+        output_fake = self.discriminator(obs, next_obs_hat)
         error_gen = self.loss(output_fake, true_label)
         error_gen.backward()
         self.optimizerG.step()
 
         self.discriminator.zero_grad()
-        output_real = self.discriminator(next_obs)
+        output_real = self.discriminator(obs, next_obs)
         error_real = self.loss(output_real, true_label)
         error_real.backward()
 
@@ -128,7 +128,7 @@ class VariationalCuriosityModule(nn.Module):
             dtype=torch.float, 
             device=self.device,
         )
-        output_fake = self.discriminator(next_obs_hat.detach())
+        output_fake = self.discriminator(obs, next_obs_hat.detach())
         error_fake = self.loss(output_fake, fake_label)
         error_fake.backward()
         self.optimizerD.step()
