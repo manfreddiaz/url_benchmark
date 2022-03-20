@@ -24,12 +24,12 @@ class Discriminator(nn.Module):
     def __init__(self, obs_dim, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(obs_dim + obs_dim, hidden_dim), nn.ReLU(),
             nn.Linear(hidden_dim, 1), nn.Sigmoid()
         )
     
-    def forward(self, next_obs):
-        return self.net(next_obs)
+    def forward(self, obs, next_obs):
+        return self.net(torch.cat([obs, next_obs], axis=-1))
 
 # TODO: (s,a,s') or technically, just s, s^' because a will add stochasticity
 # TODO: Kostrikov schema, down learning rate by 0.5 every 10^5
@@ -79,7 +79,7 @@ class VariationalCuriosityModule(nn.Module):
             device=self.device, 
             requires_grad=False
         )
-        output_real = self.discriminator(next_obs)
+        output_real = self.discriminator(obs, next_obs)
         error_real = F.binary_cross_entropy(output_real, true_label, reduction='none')
 
         fake_label = torch.full(
@@ -90,7 +90,7 @@ class VariationalCuriosityModule(nn.Module):
             requires_grad=False
         )
         next_obs_hat = self.generator(obs, action)
-        output_fake = self.discriminator(next_obs_hat.detach())
+        output_fake = self.discriminator(obs, next_obs_hat.detach())
         error_fake =  F.binary_cross_entropy(output_fake, fake_label, reduction='none')
 
         # output_gen_fake = self.discriminator(next_obs_hat)
