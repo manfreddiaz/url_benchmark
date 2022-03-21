@@ -42,6 +42,7 @@ class VariationalCuriosityModule(nn.Module):
 
         self.discriminator = Discriminator(
             obs_dim=obs_dim,
+            action_dim=action_dim,
             hidden_dim=hidden_dim
         )
         self.optimizerD = torch.optim.Adam(
