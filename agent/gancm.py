@@ -41,28 +41,33 @@ class VariationalCuriosityModule(nn.Module):
             obs_dim=obs_dim,
             hidden_dim=hidden_dim
         )
-        self.optimizerD = torch.optim.lr_scheduler.StepLR( 
-            torch.optim.Adam(
-                self.discriminator.parameters(), 
-                lr=1e-3
-            ),
-            step_size=10^5,
-            gamma=0.5
+        self.optimizerD = torch.optim.Adam(
+            self.discriminator.parameters(),
+            lr=1e-4
         )
+        # self.optimizerD = torch.optim.lr_scheduler.StepLR( 
+        #    torch.optim.Adam(
+        #        self.discriminator.parameters(), 
+        #        lr=1e-3
+        #    ),
+        #    step_size=10^5,
+        #    gamma=0.5
+        #)
 
         self.generator = Generator(
             obs_dim=obs_dim,
             action_dim=action_dim,
             hidden_dim=hidden_dim
         )
-        self.optimizerG = torch.optim.lr_scheduler.StepLR( 
-            torch.optim.Adam(
-                self.generator.parameters(), 
-                lr=1e-3
-            ),
-            step_size=10^5,
-            gamma=0.5
-        )
+        self.optimizerG = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
+        # self.optimizerG = torch.optim.lr_scheduler.StepLR( 
+        #     torch.optim.Adam(
+        #        self.generator.parameters(), 
+        #        lr=1e-3
+        #    ),
+        #    step_size=10^5,
+        #    gamma=0.5
+        # )
         self.device = device
         self.loss = nn.BCELoss()        
 
@@ -93,10 +98,10 @@ class VariationalCuriosityModule(nn.Module):
         output_fake = self.discriminator(next_obs_hat.detach())
         error_fake =  F.binary_cross_entropy(output_fake, fake_label, reduction='none')
 
-        # output_gen_fake = self.discriminator(next_obs_hat)
-        # error_gen =  F.binary_cross_entropy(output_gen_fake, true_label)
+        output_gen_fake = self.discriminator(next_obs_hat)
+        error_gen =  F.binary_cross_entropy(output_gen_fake, true_label)
 
-        return error_real + error_fake
+        return error_real, error_fake, error_gen
 
     def update(self, obs, action, next_obs):
         assert obs.shape[0] == next_obs.shape[0]
@@ -134,7 +139,7 @@ class VariationalCuriosityModule(nn.Module):
         self.optimizerD.step()
 
 
-        return error_real + error_fake, error_gen
+        return error_real, error_fake, error_gen
         
 
 class GanCMAgent(DDPGAgent):
@@ -155,21 +160,22 @@ class GanCMAgent(DDPGAgent):
     def update_icm(self, obs, action, next_obs, step):
         metrics = dict()
 
-        disc_loss, gen_loss = self.vcm.update(obs, action, next_obs)
+        real_loss, fake_loss, gen_loss = self.vcm.update(obs, action, next_obs)
 
         if self.encoder_opt is not None:
             self.encoder_opt.step()
 
         if self.use_tb or self.use_wandb:
-            metrics['vcm_disc_loss'] = disc_loss.item()
+            metrics['vcm_real_loss'] = real_loss.item()
+            metrics['vcm_fake_loss'] = fake_loss.item()
             metrics['vcm_gen_loss'] = gen_loss.item()
 
         return metrics
 
     def compute_intr_reward(self, obs, action, next_obs, step):
-        error_D = self.vcm(obs, action, next_obs)
+        error_real, error_fake, error_gen = self.vcm(obs, action, next_obs)
 
-        reward = error_D #* self.icm_scale
+        reward = error_gen #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
 
