@@ -25,7 +25,7 @@ class Discriminator(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.utils.spectral_norm(nn.Linear(obs_dim + action_dim + obs_dim, hidden_dim)), 
+            nn.utils.spectral_norm(nn.Linear(obs_dim, hidden_dim)), 
             nn.ReLU(),
             nn.Linear(hidden_dim, 1), 
             nn.Sigmoid()
@@ -33,7 +33,7 @@ class Discriminator(nn.Module):
         self.apply(utils.weight_init)
     
     def forward(self, obs, action, next_obs):
-        return self.net(torch.cat([obs, action, next_obs], axis=-1))
+        return self.net(next_obs, axis=-1)
 
 # TODO: (s,a,s') or technically, just s, s^' because a will add stochasticity
 # TODO: Kostrikov schema, down learning rate by 0.5 every 10^5
