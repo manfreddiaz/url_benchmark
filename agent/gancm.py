@@ -219,15 +219,15 @@ class GanCMAgent(DDPGAgent):
             next_obs = next_obs.detach()
 
         # # update critic
-        # metrics.update(
-        #     self.update_critic(obs.detach(), action, reward, discount,
-        #                        next_obs.detach(), step))
+        metrics.update(
+            self.update_critic(obs.detach(), action, reward, discount,
+                               next_obs.detach(), step))
 
         # # update actor
-        # metrics.update(self.update_actor(obs.detach(), step))
+        metrics.update(self.update_actor(obs.detach(), step))
 
         # # update critic target
-        # utils.soft_update_params(self.critic, self.critic_target,
-        #                          self.critic_target_tau)
+        utils.soft_update_params(self.critic, self.critic_target,
+                                 self.critic_target_tau)
 
         return metrics
