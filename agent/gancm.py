@@ -12,7 +12,8 @@ class Generator(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(obs_dim + action_dim, hidden_dim), 
             nn.ReLU(),
-            nn.Linear(hidden_dim, obs_dim)
+            nn.Linear(hidden_dim, obs_dim),
+            nn.Tanh()
         )
         self.apply(utils.weight_init)
 
@@ -24,7 +25,7 @@ class Discriminator(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(obs_dim + action_dim + obs_dim, hidden_dim), 
+            nn.utils.spectral_norm(nn.Linear(obs_dim + action_dim + obs_dim, hidden_dim)), 
             nn.ReLU(),
             nn.Linear(hidden_dim, 1), 
             nn.Sigmoid()
@@ -45,33 +46,28 @@ class VariationalCuriosityModule(nn.Module):
             action_dim=action_dim,
             hidden_dim=hidden_dim
         )
-        self.optimizerD = torch.optim.Adam(
-            self.discriminator.parameters(),
-            lr=1e-4
+        self.optimizerD = torch.optim.lr_scheduler.StepLR( 
+           torch.optim.Adam(
+               self.discriminator.parameters(), 
+               lr=1e-3
+           ),
+           step_size=10^5,
+           gamma=0.5
         )
-        # self.optimizerD = torch.optim.lr_scheduler.StepLR( 
-        #    torch.optim.Adam(
-        #        self.discriminator.parameters(), 
-        #        lr=1e-3
-        #    ),
-        #    step_size=10^5,
-        #    gamma=0.5
-        #)
 
         self.generator = Generator(
             obs_dim=obs_dim,
             action_dim=action_dim,
             hidden_dim=hidden_dim
         )
-        self.optimizerG = torch.optim.Adam(self.generator.parameters(), lr=1e-4)
-        # self.optimizerG = torch.optim.lr_scheduler.StepLR( 
-        #     torch.optim.Adam(
-        #        self.generator.parameters(), 
-        #        lr=1e-3
-        #    ),
-        #    step_size=10^5,
-        #    gamma=0.5
-        # )
+        self.optimizerG = torch.optim.lr_scheduler.StepLR( 
+            torch.optim.Adam(
+               self.generator.parameters(), 
+               lr=1e-3
+           ),
+           step_size=10^5,
+           gamma=0.5
+        )
         self.device = device
         self.loss = nn.BCELoss()        
 
