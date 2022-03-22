@@ -33,7 +33,7 @@ class Discriminator(nn.Module):
         self.apply(utils.weight_init)
     
     def forward(self, obs, action, next_obs):
-        return self.net(next_obs, axis=-1)
+        return self.net(next_obs)
 
 # TODO: (s,a,s') or technically, just s, s^' because a will add stochasticity
 # TODO: Kostrikov schema, down learning rate by 0.5 every 10^5
