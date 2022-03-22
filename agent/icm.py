@@ -83,7 +83,7 @@ class ICMAgent(DDPGAgent):
         dist = self.actor(obs, stddev)
         log_prob = dist.log_prob(action)
 
-        reward = forward_error - log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
+        reward = forward_error - 0.05 * log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
 
