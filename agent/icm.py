@@ -79,8 +79,12 @@ class ICMAgent(DDPGAgent):
     def compute_intr_reward(self, obs, action, next_obs, step):
         forward_error, _ = self.icm(obs, action, next_obs)
 
-        reward = forward_error * self.icm_scale
-        reward = torch.log(reward + 1.0)
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        log_prob = dist.log_prob(action)
+
+        reward = forward_error - log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
+        # reward = torch.log(reward + 1.0)
         return reward
 
     def update(self, replay_iter, step):
