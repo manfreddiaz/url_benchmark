@@ -1,3 +1,4 @@
+from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,13 +22,13 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, obs_dim, hidden_dim):
+    def __init__(self, obs_dim, hidden_dim, activation=nn.Sigmoid):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim), 
             nn.ReLU(),
             nn.Linear(hidden_dim, 1), 
-            nn.Sigmoid()
+            activation()
         )
     
     def forward(self, next_obs):
@@ -35,7 +36,7 @@ class Discriminator(nn.Module):
 
 # TODO: (s,a,s') or technically, just s, s^' because a will add stochasticity
 # TODO: Kostrikov schema, down learning rate by 0.5 every 10^5
-class VariationalCuriosityModule(nn.Module):
+class GAN(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim, device):
         super().__init__()
 
@@ -137,7 +138,67 @@ class VariationalCuriosityModule(nn.Module):
 
 
         return error_real + error_fake, error_gen
-        
+
+class WGAN(nn.Module):
+    def __init__(self, obs_dim, action_dim, hidden_dim, device, clamp=0.01):
+        super().__init__()
+        self.discriminator = Discriminator(
+            obs_dim=obs_dim,
+            hidden_dim=hidden_dim,
+            activation=nn.Identity
+        )
+        self.optimizerD = torch.optim.lr_scheduler.StepLR( 
+            torch.optim.Adam(
+                self.discriminator.parameters(), 
+                lr=1e-3
+            ),
+            step_size=10^5,
+            gamma=0.5
+        )
+
+        self.generator = Generator(
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            hidden_dim=hidden_dim
+        )
+        self.optimizerG = torch.optim.lr_scheduler.StepLR( 
+            torch.optim.Adam(
+                self.generator.parameters(), 
+                lr=1e-3
+            ),
+            step_size=10^5,
+            gamma=0.5
+        )
+        self.device = device
+        self.clamp = clamp
+
+    def forward(self, obs, action, next_obs):
+        assert obs.shape[0] == next_obs.shape[0]
+        assert obs.shape[0] == action.shape[0]
+
+        next_obs_hat = self.generator(obs, action)
+        lossD = -torch.mean(self.discriminator(next_obs))
+        lossG = torch.mean(self.discriminator(next_obs_hat.detach()))
+
+        return lossD + lossG
+
+    def update(self, obs, action, next_obs):
+        next_obs_hat = self.generator(obs, action)
+        self.discriminator.zero_grad()
+        lossD = -torch.mean(self.discriminator(next_obs))
+        lossD += torch.mean(self.discriminator(next_obs_hat.detach()))
+        lossD.backward()
+        self.optimizerD.step()
+
+        for params in self.discriminator.parameters():
+            params.data.clamp(-self.clamp, self.clamp)
+
+        self.generator.zero_grad()
+        lossG = -torch.mean(self.discriminator(next_obs_hat))
+        lossG.backward()
+        self.optimizerG.step()
+
+        return lossD, lossG
 
 class GanCMAgent(DDPGAgent):
     def __init__(self, icm_scale, update_encoder, **kwargs):
@@ -145,7 +206,7 @@ class GanCMAgent(DDPGAgent):
         self.icm_scale = icm_scale
         self.update_encoder = update_encoder
 
-        self.vcm = VariationalCuriosityModule(
+        self.vcm = GAN(
             self.obs_dim, 
             self.action_dim,
             self.hidden_dim,
@@ -171,7 +232,7 @@ class GanCMAgent(DDPGAgent):
     def compute_intr_reward(self, obs, action, next_obs, step):
         error_D = self.vcm(obs, action, next_obs)
 
-        reward = error_D #* self.icm_scale
+        reward = error_D
         # reward = torch.log(reward + 1.0)
         return reward
 
