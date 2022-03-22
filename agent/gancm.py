@@ -13,7 +13,6 @@ class Generator(nn.Module):
             nn.Linear(obs_dim + action_dim, hidden_dim), 
             nn.ReLU(),
             nn.Linear(hidden_dim, obs_dim),
-            nn.Tanh()
         )
         self.apply(utils.weight_init)
 
