@@ -13,13 +13,19 @@ class ICM(nn.Module):
         super().__init__()
 
         self.forward_net = nn.Sequential(
-            nn.Linear(obs_dim + action_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(obs_dim + action_dim, hidden_dim), 
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
             nn.Linear(hidden_dim, obs_dim))
 
-        self.backward_net = nn.Sequential(nn.Linear(2 * obs_dim, hidden_dim),
-                                          nn.ReLU(),
-                                          nn.Linear(hidden_dim, action_dim),
-                                          nn.Tanh())
+        self.backward_net = nn.Sequential(
+            nn.Linear(2 * obs_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, action_dim),
+            nn.Tanh()
+        )
 
         self.apply(utils.weight_init)
 
@@ -84,8 +90,9 @@ class ICMAgent(DDPGAgent):
         # log_prob = dist.log_prob(action)
 
         # reward = forward_error - 0.05 * log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
-        # reward = torch.log(reward + 1.0)
-        return forward_error.fill_(5) + torch.randn_like(forward_error, device=self.device)
+        reward = forward_error * self.icm_scale
+        reward = torch.log(reward + 1.0)
+        return reward
 
     def update(self, replay_iter, step):
         metrics = dict()
