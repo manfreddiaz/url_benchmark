@@ -105,7 +105,7 @@ class VariationalCuriosityModule(nn.Module):
         output_gen_fake = self.discriminator(obs, action, next_obs_hat.detach())
         error_gen =  F.binary_cross_entropy(output_gen_fake, true_label)
 
-        return error_real.item(), error_fake.item(), error_gen.item()
+        return error_real, error_fake, error_gen
 
     def update(self, obs, action, next_obs):
         assert obs.shape[0] == next_obs.shape[0]
