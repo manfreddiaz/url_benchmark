@@ -176,8 +176,6 @@ class GanCMAgent(DDPGAgent):
         log_prob = dist.log_prob(action)
 
         reward = error_D - 0.05 * log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
-
-        reward = error_D #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
 
