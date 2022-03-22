@@ -171,6 +171,12 @@ class GanCMAgent(DDPGAgent):
     def compute_intr_reward(self, obs, action, next_obs, step):
         error_D = self.vcm(obs, action, next_obs)
 
+        stddev = utils.schedule(self.stddev_schedule, step)
+        dist = self.actor(obs, stddev)
+        log_prob = dist.log_prob(action)
+
+        reward = error_D - 0.05 * log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
+
         reward = error_D #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
