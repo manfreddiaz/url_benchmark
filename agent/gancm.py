@@ -105,7 +105,7 @@ class VariationalCuriosityModule(nn.Module):
         output_gen_fake = self.discriminator(obs, action, next_obs_hat.detach())
         error_gen =  F.binary_cross_entropy(output_gen_fake, true_label)
 
-        return error_real, error_fake, error_gen
+        return error_real.item(), error_fake.item(), error_gen.item()
 
     def update(self, obs, action, next_obs):
         assert obs.shape[0] == next_obs.shape[0]
@@ -178,7 +178,7 @@ class GanCMAgent(DDPGAgent):
     def compute_intr_reward(self, obs, action, next_obs, step):
         error_real, error_fake, error_gen = self.vcm(obs, action, next_obs)
 
-        reward = error_gen #* self.icm_scale
+        reward = (error_real + error_fake) / 2 #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
 
