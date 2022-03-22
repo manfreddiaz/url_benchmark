@@ -24,8 +24,10 @@ class Discriminator(nn.Module):
     def __init__(self, obs_dim, hidden_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(obs_dim, hidden_dim), nn.ReLU(),
-            nn.Linear(hidden_dim, 1), nn.Sigmoid()
+            nn.Linear(obs_dim, hidden_dim), 
+            nn.ReLU(),
+            nn.utils.spectral_norm(nn.Linear(hidden_dim, 1)), 
+            nn.Sigmoid()
         )
     
     def forward(self, next_obs):
