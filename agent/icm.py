@@ -85,7 +85,7 @@ class ICMAgent(DDPGAgent):
 
         # reward = forward_error - 0.05 * log_prob.sum(axis=-1, keepdim=True) #* self.icm_scale
         # reward = torch.log(reward + 1.0)
-        return forward_error.torch.fill_(5) + torch.randn_like(forward_error, device=self.device)
+        return forward_error.fill_(5) + torch.randn_like(forward_error, device=self.device)
 
     def update(self, replay_iter, step):
         metrics = dict()
