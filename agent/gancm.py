@@ -173,7 +173,7 @@ class GanCMAgent(DDPGAgent):
     def compute_intr_reward(self, obs, action, next_obs, step):
         error_real, error_fake, error_gen = self.vcm(obs, action, next_obs)
 
-        reward = (error_real + error_fake) / 2 #* self.icm_scale
+        reward = error_real + error_fake #* self.icm_scale
         # reward = torch.log(reward + 1.0)
         return reward
 
