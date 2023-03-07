@@ -6,7 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dm_env import specs
+from dm_env import specs, TimeStep
+from SMPyBandits.Policies import Exp3
 
 import utils
 from agent.ddpg import DDPGAgent
@@ -37,6 +38,9 @@ class DIAYNAgent(DDPGAgent):
         self.update_encoder = update_encoder
         # increase obs shape to include skill dim
         kwargs["meta_dim"] = self.skill_dim
+        self._bandit = Exp3(self.skill_dim)
+        self._last_arm_reward = 0.0
+        self._current_arm_reward = 0.0
 
         # create actor and critic
         super().__init__(**kwargs)
@@ -56,15 +60,27 @@ class DIAYNAgent(DDPGAgent):
         return (specs.Array((self.skill_dim,), np.float32, 'skill'),)
 
     def init_meta(self):
+        skill_action = self._bandit.choice()
         skill = np.zeros(self.skill_dim, dtype=np.float32)
-        skill[np.random.choice(self.skill_dim)] = 1.0
+        skill[skill_action] = 1.0
         meta = OrderedDict()
         meta['skill'] = skill
+        
         return meta
 
-    def update_meta(self, meta, global_step, time_step):
+    def update_meta(self, meta, global_step, time_step: TimeStep):
+        self._current_arm_reward += time_step.reward
+        
         if global_step % self.update_skill_every_step == 0:
+            self._bandit.getReward(
+                arm=np.argmax(meta),
+                reward=self._current_arm_reward - self._last_arm_reward
+            )
+            self._last_arm_reward = self._current_arm_reward
+            self._current_arm_reward = 0.0
             return self.init_meta()
+            
+        
         return meta
 
     def update_diayn(self, skill, next_obs, step):
