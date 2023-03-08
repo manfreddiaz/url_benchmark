@@ -5,7 +5,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 import os
 
 os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'glfw'
+os.environ['MUJOCO_GL'] = 'osmesa'
 
 from pathlib import Path
 
@@ -180,6 +180,8 @@ class Workspace:
                         log('episode', self.global_episode)
                         log('buffer_size', len(self.replay_storage))
                         log('step', self.global_step)
+                        print(f"arms: {self.agent._bandit.pulls}")
+
 
                 # reset env
                 time_step = self.train_env.reset()

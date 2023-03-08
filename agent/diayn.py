@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dm_env import specs, TimeStep
-from SMPyBandits.Policies import Exp3
+from SMPyBandits.Policies import Exp3, UCB, Exp3PlusPlus, Hedge, BoltzmannGumbel
+from scipy.stats import entropy
 
 import utils
 from agent.ddpg import DDPGAgent
@@ -38,10 +39,12 @@ class DIAYNAgent(DDPGAgent):
         self.update_encoder = update_encoder
         # increase obs shape to include skill dim
         kwargs["meta_dim"] = self.skill_dim
-        self._bandit = Exp3(self.skill_dim)
-        self._last_arm_reward = 0.0
-        self._current_arm_reward = 0.0
+        # self._bandit = Exp3(self.skill_dim, gamma=0.8, unbiased=True)
+        # self._bandit = UCB(self.skill_dim)
+        # self._bandit = Hedge(self.skill_dim)
+        self._bandit = BoltzmannGumbel(self.skill_dim)
 
+      
         # create actor and critic
         super().__init__(**kwargs)
 
@@ -50,7 +53,9 @@ class DIAYNAgent(DDPGAgent):
                            kwargs['hidden_dim']).to(kwargs['device'])
 
         # loss criterion
-        self.diayn_criterion = nn.CrossEntropyLoss()
+        # self.diayn_criterion = nn.CrossEntropyLoss()
+        # loss criterion
+        self.diayn_criterion = nn.CrossEntropyLoss(reduction='none')
         # optimizers
         self.diayn_opt = torch.optim.Adam(self.diayn.parameters(), lr=self.lr)
 
@@ -61,25 +66,18 @@ class DIAYNAgent(DDPGAgent):
 
     def init_meta(self):
         skill_action = self._bandit.choice()
+        # TODO: # move the exploration needle
+        self._bandit.t += 1 if self._bandit.t < self.skill_dim else 0
         skill = np.zeros(self.skill_dim, dtype=np.float32)
         skill[skill_action] = 1.0
         meta = OrderedDict()
         meta['skill'] = skill
-        
         return meta
 
     def update_meta(self, meta, global_step, time_step: TimeStep):
-        self._current_arm_reward += time_step.reward
-        
         if global_step % self.update_skill_every_step == 0:
-            self._bandit.getReward(
-                arm=np.argmax(meta),
-                reward=self._current_arm_reward - self._last_arm_reward
-            )
-            self._last_arm_reward = self._current_arm_reward
-            self._current_arm_reward = 0.0
             return self.init_meta()
-            
+               
         
         return meta
 
@@ -128,7 +126,14 @@ class DIAYNAgent(DDPGAgent):
                                     list(
                                         pred_z.size())[0])[0])).float() / list(
                                             pred_z.size())[0]
-        return d_loss, df_accuracy
+        def update_bandit(t):
+            r, a = t
+            self._bandit.getReward(int(a), r)
+            return t
+
+        np.apply_along_axis(update_bandit, 0, torch.vstack([d_loss.detach(), z_hat]).cpu().numpy())
+
+        return d_loss.mean(), df_accuracy
 
     def update(self, replay_iter, step):
         metrics = dict()
@@ -156,6 +161,15 @@ class DIAYNAgent(DDPGAgent):
             reward = intr_reward
         else:
             reward = extr_reward
+
+        # def update_bandit(t):
+        #     r, a = t
+        #     self._bandit.getReward(int(a), -r)
+        #     return t
+
+        # reward_per_skill = torch.cat([reward, skill.argmax(dim=-1).unsqueeze(dim=-1)], dim=-1)
+        # np.apply_along_axis(update_bandit, 1, reward_per_skill.cpu().numpy())
+
 
         if self.use_tb or self.use_wandb:
             metrics['extr_reward'] = extr_reward.mean().item()
